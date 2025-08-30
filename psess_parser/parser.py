@@ -60,7 +60,7 @@ def parse_pssession_file(fp, encodings=["utf-16", "utf-16-le"]):
     return data
 
 
-def parse_EISs(measurements, annotations=[], opts={}):
+def parse_eis_data(measurements, enrichments=[], opts={}):
     out = []
     for i, measurement in enumerate(measurements):
         method_params = parse_method(measurement.get("Method", ""))
@@ -68,22 +68,36 @@ def parse_EISs(measurements, annotations=[], opts={}):
         if mid != "eis":
             continue
 
-        annotation = annotations[i] if i < len(annotations) else {}
-        out.append(parse_eis(measurement, annotations=annotation, opts=opts))
+        out.append(parse_eis(measurement))
+
+    if len(out) == 0:
+        return None
+
+    df = pd.concat(out)
+    df = enrich_df(df, enrichments)
 
     sort_keys = opts.get("presort", []) + SORT_KEYS_EIS + opts.get("sort", [])
+    df = df.sort_values(sort_keys, kind="mergesort").reset_index(drop=True)
 
-    return (
-        (pd.concat(out).sort_values(sort_keys, kind="mergesort").reset_index(drop=True))
-        if out
-        else None
-    )
+    return df
 
 
-def parse_data(data, annotations=[], opts={}):
+def enrich_df(df, enrichments):
+    out = df.copy()
+    for match_fn, upd_fn in enrichments:
+        m = out.apply(match_fn, axis=1)
+        if not m.any():
+            continue
+        upd = out.loc[m].apply(upd_fn, axis=1).apply(pd.Series)  # dicts → columns
+        out.loc[m, upd.columns] = upd.values
+
+    return out
+
+
+def parse_data(data, enrichments=[], opts={}):
     measurements = data.get("Measurements", [])
 
-    eis = parse_EISs(measurements, annotations=annotations, opts=opts)
+    eis = parse_eis_data(measurements, enrichments=enrichments, opts=opts)
     cv = None
     lsv = None
 
@@ -105,9 +119,9 @@ def parse_info(data):
     return info
 
 
-def parse(file_path, annotations=[], opts={}):
+def parse(file_path, enrichments=[], opts={}):
     data = parse_pssession_file(file_path)
-    return parse_data(data, annotations=annotations, opts=opts)
+    return parse_data(data, enrichments=enrichments, opts=opts)
 
 
 def info(file_path):

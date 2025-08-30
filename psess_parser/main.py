@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import numpy as np
 from .parser import parse, gen_annotation
 
 
@@ -12,34 +13,37 @@ def main():
     parser.add_argument("input_file", help="Path to the .pssession file")
     args = parser.parse_args()
 
-    def annotate(entry):
+    def parse_title(row):
         try:
-            title = entry.get("title")
+            title = row.get("title")
             parts = title.split(" ")
             data, animal, implant, device_n, block = parts
 
+            device_int = int(device_n[1:])
+            two_digit_dev = f"N{device_int:02d}"
+
             return {
-                "device": device_n,
+                "device": two_digit_dev,
                 "block": block,
             }
         except Exception as e:
-            print(f"Error annotating entry {entry}: {e}")
+            print(f"Error annotating row {row}: {e}")
             return {}
 
-    annotations = gen_annotation(args.input_file, annotate)
+    enrichments = [
+        (lambda row: True, parse_title),
+        (
+            lambda row: row.get("block") == "BOT",
+            lambda row: {"channel": row.get("channel", 0) + 16},
+        ),
+    ]
 
     eis, cv, lsv = parse(
         args.input_file,
-        annotations=annotations,
-        opts={
-            "blocks_offset": {
-                "TOP": 0,
-                "BOT": 16,
-            },
-            "presort": ["device"],
-            "annotations": {"channel": {"17": "test", "24": "test", "29": "test"}},
-        },
+        enrichments=enrichments,
+        opts={"presort": ["device", "channel"]},
     )
+    print(np.unique(eis["device"]))
     print(eis)
 
 

@@ -29,13 +29,6 @@ def parse_eis_ch_title(title, annotations={}, opts={}):
     assert match, f"Could not parse EIS channel title: {title}"
     channel = int(match.group(1))
 
-    block = annotations.get("block", None)
-    if block is None:
-        return channel
-
-    block_offset = opts.get("blocks_offset", {}).get(block, 0)
-    channel += block_offset
-
     return channel
 
 
@@ -98,9 +91,6 @@ def parse_eis(measurement, annotations={}, opts={}):
             **annotations,
             "channel": channel,
         }
-
-        if deep_get(opts, "annotations.channel", None) is not None:
-            metadata["ch_type"] = deep_get(opts, f"annotations.channel.{channel}", "ok")
 
         measurements.append(
             {
