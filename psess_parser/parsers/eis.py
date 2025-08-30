@@ -6,7 +6,7 @@ from ..util.util import short_id, deep_get
 SWEEP_ID = "sweep_id"
 SORT_KEYS = ["date", "channel"]
 
-UNITS = ["frequency", "z", "phase", "zre", "zim", "c", "cre", "cim"]
+UNITS = ["frequency", "z", "phase", "zre", "zim", "c", "cre", "cim", "idc"]
 
 
 def labels_mapping(label):

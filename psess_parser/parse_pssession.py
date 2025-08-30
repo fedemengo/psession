@@ -5,9 +5,12 @@ Handles UTF-16 encoded JSON-like data format.
 """
 
 import json
+import os
+import sys
 import pandas as pd
 import argparse
 from pathlib import Path
+from pprint import pprint
 
 
 def parse_pssession_file(file_path):
@@ -56,6 +59,10 @@ def parse_pssession_file(file_path):
         except json.JSONDecodeError as e2:
             print(f"Error parsing JSON even after truncation: {e2}")
             return None
+
+    if os.getenv("PRINT", "").lower() in ("1", "true", "yes", "t", "y"):
+        pprint(data)
+        sys.exit(0)
 
     # Extract measurement data
     if "Measurements" not in data or not data["Measurements"]:
