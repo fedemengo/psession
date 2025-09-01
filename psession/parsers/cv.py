@@ -7,3 +7,4 @@ def parse_cv(measurement, method_info=None):
     assert len(measurement.get("Curves", [])) > 0, "No channels found in CV measurement"
 
     return {}
+

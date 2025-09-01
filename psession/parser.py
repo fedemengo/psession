@@ -1,7 +1,10 @@
-import argparse
+from __future__ import annotations
+
 import json
 import os
 from pprint import pprint
+from typing import Iterable, List, Optional, Tuple
+
 import pandas as pd
 
 from .parsers.common import parse_method
@@ -10,18 +13,19 @@ from .parsers.cv import parse_cv
 from .parsers.lsv import parse_lsv
 
 
-def multi_encoding_open(file_path, encodings):
-    content = None
+def multi_encoding_open(file_path: str, encodings: Iterable[str]) -> Optional[str]:
+    """Read text trying multiple encodings, returning the first success."""
     for enc in encodings:
         try:
             with open(file_path, "r", encoding=enc) as f:
                 return f.read()
         except UnicodeDecodeError:
             continue
-    return content
+    return None
 
 
-def find_json_end(content):
+def find_json_end(content: str) -> int:
+    """Find the end index of the first complete JSON object in content."""
     brace_count, json_end = 0, -1
     for i, char in enumerate(content):
         if char == "{":
@@ -32,13 +36,17 @@ def find_json_end(content):
                 json_end = i + 1
                 break
 
-    if json_end > 0:
-        return json_end
+    if json_end <= 0:
+        raise ValueError("Could not find valid JSON structure")
+    return json_end
 
-    raise ValueError("Could not find valid JSON structure")
 
-
-def parse_pssession_file(fp, encodings=["utf-16", "utf-16-le"]):
+def parse_pssession_file(
+    fp: str, encodings: Iterable[str] = ("utf-16", "utf-16-le")
+) -> dict:
+    """Parse a .pssession file into a Python dict, handling encoding fallbacks
+    and potential trailing bytes past the JSON root object.
+    """
     content = multi_encoding_open(fp, encodings)
     if content is None:
         raise ValueError(f"Could not read {fp} with encodings {encodings}")
@@ -60,7 +68,9 @@ def parse_pssession_file(fp, encodings=["utf-16", "utf-16-le"]):
     return data
 
 
-def parse_eis_data(measurements, enrichments=[], opts={}):
+def parse_eis_data(
+    measurements: List[dict], enrichments: list = [], opts: dict = {}
+) -> Optional[pd.DataFrame]:
     out = []
     for i, measurement in enumerate(measurements):
         method_params = parse_method(measurement.get("Method", ""))
@@ -82,7 +92,7 @@ def parse_eis_data(measurements, enrichments=[], opts={}):
     return df
 
 
-def enrich_df(df, enrichments):
+def enrich_df(df: pd.DataFrame, enrichments: list) -> pd.DataFrame:
     out = df.copy()
     for match_fn, upd_fn in enrichments:
         m = out.apply(match_fn, axis=1)
@@ -94,7 +104,9 @@ def enrich_df(df, enrichments):
     return out
 
 
-def parse_data(data, enrichments=[], opts={}):
+def parse_data(
+    data: dict, enrichments: list = [], opts: dict = {}
+) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
     measurements = data.get("Measurements", [])
 
     eis = parse_eis_data(measurements, enrichments=enrichments, opts=opts)
@@ -104,7 +116,7 @@ def parse_data(data, enrichments=[], opts={}):
     return eis, cv, lsv
 
 
-def parse_info(data):
+def parse_info(data: dict) -> list:
     info = []
     for measurement in data.get("Measurements", []):
         method_params = parse_method(measurement.get("Method", ""))
@@ -119,17 +131,17 @@ def parse_info(data):
     return info
 
 
-def parse(file_path, enrichments=[], opts={}):
+def parse(file_path: str, enrichments: list = [], opts: dict = {}):
     data = parse_pssession_file(file_path)
     return parse_data(data, enrichments=enrichments, opts=opts)
 
 
-def info(file_path):
+def info(file_path: str) -> list:
     data = parse_pssession_file(file_path)
     return parse_info(data)
 
 
-def gen_annotation(file_path, fn):
+def gen_annotation(file_path: str, fn):
     out = []
     for minfo in info(file_path):
         out.append({**minfo, **fn(minfo)})

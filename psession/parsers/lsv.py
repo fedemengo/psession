@@ -9,3 +9,4 @@ def parse_lsv(measurement, method_info=None):
     ), "No channels found in LSV measurement"
 
     return {}
+

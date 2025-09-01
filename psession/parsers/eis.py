@@ -1,7 +1,7 @@
 import re
 import pandas as pd
-from .common import parse_common, MEASUREMENT_ID
-from ..util.util import short_id, deep_get
+from .common import parse_common
+from ..util.util import short_id
 
 SWEEP_ID = "sweep_id"
 SORT_KEYS = ["date", "channel"]
@@ -15,7 +15,7 @@ def labels_mapping(label):
     if label == "capacitance'":
         return "cre"
     if label == "capacitance''":
-        return "cim'"
+        return "cim"
 
     return label
 
@@ -73,8 +73,6 @@ def flattened_measurements(measurements):
 
 
 def parse_eis(measurement, annotations={}, opts={}):
-    # print("Parsing EIS measurement...")
-
     assert (
         len(measurement.get("EISDataList", [])) > 0
     ), "No channels found in EIS measurement"
@@ -99,3 +97,4 @@ def parse_eis(measurement, annotations={}, opts={}):
         )
 
     return flattened_measurements(measurements)
+
