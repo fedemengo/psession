@@ -1,6 +1,8 @@
 import re
 from .common import parse_common, flattened_measurements, short_id, SWEEP_ID
 
+METHOD_KEYS = ["e_begin", "e_end", "e_step", "scan_rate", "n_scans"]
+
 
 def parse_cv_ch_title(title):
     assert len(title) > 0, "CV channel title is empty"
@@ -30,11 +32,8 @@ def parse_dataset(measurement, metadata):
     }
 
 
-wanted = ["e_begin", "e_end", "e_step", "scan_rate", "cycle_count"]
-
-
 def method_params(data):
-    return {k: data[k] for k in wanted if k in data}
+    return {k: data[k] for k in METHOD_KEYS if k in data}
 
 
 def parse_cv(measurement, method_info=None):

@@ -7,7 +7,7 @@ from pprint import pprint
 from typing import Iterable, List, Optional, Tuple
 import pandas as pd
 
-from .parsers.common import parse_method
+from .parsers.common import parse_method, parse_common
 from .parsers.eis import parse_eis, SORT_KEYS as SORT_KEYS_EIS
 from .parsers.cv import parse_cv
 from .parsers.lsv import parse_lsv
@@ -167,11 +167,10 @@ def parse_info(data: dict) -> list:
     info = []
     for measurement in data.get("Measurements", []):
         method_params = parse_method(measurement.get("Method", ""))
-        mid = method_params.get("METHOD_ID", "").lower()
         info.append(
             {
-                "title": measurement.get("Title", ""),
-                "method_id": mid,
+                **parse_common(measurement),
+                "method_id": method_params.get("method_id", ""),
             }
         )
 
