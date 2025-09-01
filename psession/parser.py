@@ -58,6 +58,10 @@ def parse_pssession_file(
         try:
             json_content = content[:json_end]
             data = json.loads(json_content)
+            fp_json = fp + ".json"
+            if not os.path.exists(fp_json):
+                with open(fp_json, "w", encoding="utf-8") as f:
+                    f.write(json_content)
         except json.JSONDecodeError as e:
             raise e
 
@@ -68,17 +72,21 @@ def parse_pssession_file(
     return data
 
 
-def parse_eis_data(
-    measurements: List[dict], enrichments: list = [], opts: dict = {}
-) -> Optional[pd.DataFrame]:
+def parse_measurement_data(
+    method_id: str,
+    parse_fn,
+    measurements: List[dict],
+    enrichments: list = [],
+    opts: dict = {},
+):
     out = []
     for i, measurement in enumerate(measurements):
         method_params = parse_method(measurement.get("Method", ""))
         mid = method_params.get("METHOD_ID", "").lower()
-        if mid != "eis":
+        if mid != method_id:
             continue
 
-        out.append(parse_eis(measurement))
+        out.append(parse_fn(measurement))
 
     if len(out) == 0:
         return None
@@ -109,7 +117,9 @@ def parse_data(
 ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
     measurements = data.get("Measurements", [])
 
-    eis = parse_eis_data(measurements, enrichments=enrichments, opts=opts)
+    eis = parse_measurement_data(
+        "eis", parse_eis, measurements, enrichments=enrichments, opts=opts
+    )
     cv = None
     lsv = None
 
