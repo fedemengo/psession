@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://example.com/psession"
+Homepage = "https://github.com/fedemengo/psession"
 
 [project.scripts]
 psession = "psession.cli:main"
