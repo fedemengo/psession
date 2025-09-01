@@ -1,9 +1,8 @@
 import re
 import pandas as pd
-from .common import parse_common
+from .common import parse_common, flattened_measurements, SWEEP_ID
 from ..util.util import short_id
 
-SWEEP_ID = "sweep_id"
 SORT_KEYS = ["date", "channel"]
 
 UNITS = ["frequency", "z", "phase", "zre", "zim", "c", "cre", "cim", "idc"]
@@ -20,8 +19,10 @@ def labels_mapping(label):
     return label
 
 
-# parse tutles in the form "CH 1: 13 freqs"
-def parse_eis_ch_title(title, annotations={}, opts={}):
+# parse title in the form "CH 1: 13 freqs"
+def parse_eis_ch_title(
+    title,
+):
     assert len(title) > 0, "EIS channel title is empty"
 
     regex = r"CH (\d+): (\d+) freqs"
@@ -29,11 +30,9 @@ def parse_eis_ch_title(title, annotations={}, opts={}):
     assert match, f"Could not parse EIS channel title: {title}"
     channel = int(match.group(1))
 
-    return channel
-
-
-def parse_frequency(ds_value):
-    return [x.get("V") for x in ds_value.get("DataValues", [])]
+    return {
+        "channel": channel,
+    }
 
 
 def parse_dataset(measurement, metadata):
@@ -55,24 +54,7 @@ def parse_dataset(measurement, metadata):
     }
 
 
-def flattened_measurements(measurements):
-    df = pd.concat(
-        (pd.DataFrame(run["data"]).assign(**run["metadata"]) for run in measurements),
-        ignore_index=True,
-    )
-
-    # metadata first
-    meta_cols = list(measurements[0]["metadata"].keys())
-    other = [c for c in df.columns if c not in meta_cols]
-    df = df[meta_cols + other]
-
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.sort_values(SORT_KEYS).reset_index(drop=True)
-
-    return df
-
-
-def parse_eis(measurement, annotations={}, opts={}):
+def parse_eis(measurement, method_info=None):
     assert (
         len(measurement.get("EISDataList", [])) > 0
     ), "No channels found in EIS measurement"
@@ -81,20 +63,13 @@ def parse_eis(measurement, annotations={}, opts={}):
 
     measurements = []
     for eis_measurement in measurement["EISDataList"]:
-        channel = parse_eis_ch_title(
-            eis_measurement.get("Title", ""), annotations=annotations, opts=opts
-        )
         metadata = {
             **measurement_info,
-            **annotations,
-            "channel": channel,
+            **parse_eis_ch_title(eis_measurement.get("Title", "")),
         }
 
         measurements.append(
-            {
-                **parse_dataset(eis_measurement, metadata),
-            }
+            parse_dataset(eis_measurement, metadata),
         )
 
-    return flattened_measurements(measurements)
-
+    return flattened_measurements(measurements, sort_keys=SORT_KEYS)

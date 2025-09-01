@@ -1,7 +1,10 @@
+import pandas as pd
 from datetime import datetime, timedelta
 from ..util.util import short_id
 
 MEASUREMENT_ID = "measurement_id"
+SWEEP_ID = "sweep_id"
+SORT_KEYS = ["date", "channel"]
 
 
 def ticks_to_date(ticks):
@@ -22,7 +25,8 @@ def parse_common(measurement):
 
 def parse_method(text):
     out = {}
-    for raw in text.strip().splitlines():
+    clean_text = text.strip().lower()
+    for raw in clean_text.strip().splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -54,3 +58,20 @@ def parse_method(text):
         else:
             out[key] = val
     return out
+
+
+def flattened_measurements(measurements, sort_keys=SORT_KEYS):
+    df = pd.concat(
+        (pd.DataFrame(run["data"]).assign(**run["metadata"]) for run in measurements),
+        ignore_index=True,
+    )
+
+    # metadata first
+    meta_cols = list(measurements[0]["metadata"].keys())
+    other = [c for c in df.columns if c not in meta_cols]
+    df = df[meta_cols + other]
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.sort_values(sort_keys).reset_index(drop=True)
+
+    return df

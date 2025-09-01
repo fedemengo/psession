@@ -86,25 +86,26 @@ def main(argv: Optional[list[str]] = None) -> int:
             print("LSV:")
             print(lsv.head())
 
-    if args.output:
-        if eis is None:
-            print("No EIS data to write", file=sys.stderr)
-            return 2
-        if args.output == "-":
-            # Make SIGPIPE behave like in shells (quietly terminate writers)
-            try:
-                signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # type: ignore[attr-defined]
-            except Exception:
-                pass
-            try:
-                eis.to_csv(sys.stdout, index=False)
-            except BrokenPipeError:
-                return 0
-        else:
-            out_path = Path(args.output)
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            eis.to_csv(out_path, index=False)
-            print(f"Wrote EIS CSV -> {out_path}")
+    for data in [eis, cv, lsv]:
+        if args.output:
+            if data is None:
+                print("No data data to write", file=sys.stderr)
+                continue
+            if args.output == "-":
+                # Make SIGPIPE behave like in shells (quietly terminate writers)
+                try:
+                    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                try:
+                    data.to_csv(sys.stdout, index=False)
+                except BrokenPipeError:
+                    return 0
+            else:
+                out_path = Path(args.output)
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                data.to_csv(out_path, index=False)
+                print(f"Wrote data CSV -> {out_path}")
 
     # If nothing printed or written, provide a tiny summary
     if not args.head and not args.output:

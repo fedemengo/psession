@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import json
 import os
+import logging
 from pprint import pprint
 from typing import Iterable, List, Optional, Tuple
-
 import pandas as pd
 
 from .parsers.common import parse_method
 from .parsers.eis import parse_eis, SORT_KEYS as SORT_KEYS_EIS
 from .parsers.cv import parse_cv
 from .parsers.lsv import parse_lsv
+
+SUPPORTED_VERSION = (5, 11, 1006)
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 def multi_encoding_open(file_path: str, encodings: Iterable[str]) -> Optional[str]:
@@ -41,6 +46,21 @@ def find_json_end(content: str) -> int:
     return json_end
 
 
+def check_support(data: dict):
+    version_string = data.get("CoreVersion", "")
+    parts = version_string.split(".")
+
+    if len(parts) < 2:
+        raise ValueError(f"Could not parse version string: {version_string}")
+
+    major = int(parts[0])
+    minor = int(parts[1])
+
+    if major > SUPPORTED_VERSION[0] or minor > SUPPORTED_VERSION[1]:
+        supp_v = ".".join(map(str, SUPPORTED_VERSION))
+        raise ValueError(f"Version {version_string} is newer than supported {supp_v}")
+
+
 def parse_pssession_file(
     fp: str, encodings: Iterable[str] = ("utf-16", "utf-16-le")
 ) -> dict:
@@ -69,6 +89,11 @@ def parse_pssession_file(
     if envPrint in ("1", "true", "yes", "t", "y"):
         pprint(data)
 
+    try:
+        check_support(data)
+    except ValueError as e:
+        log.warning("Support check failed: %s", e)
+
     return data
 
 
@@ -82,14 +107,22 @@ def parse_measurement_data(
     out = []
     for i, measurement in enumerate(measurements):
         method_params = parse_method(measurement.get("Method", ""))
-        mid = method_params.get("METHOD_ID", "").lower()
+        mid = method_params.get("method_id", "")
         if mid != method_id:
             continue
 
-        out.append(parse_fn(measurement))
+        try:
+            data = parse_fn(measurement, method_info=method_params)
+        except Exception as e:
+            log.error(f"Error parsing {method_id} measurement #{i}: {e}")
+            continue
+
+        out.append(data)
 
     if len(out) == 0:
         return None
+
+    print(f"Parsed {len(out)} {method_id.upper()} measurements")
 
     df = pd.concat(out)
     df = enrich_df(df, enrichments)
@@ -120,8 +153,12 @@ def parse_data(
     eis = parse_measurement_data(
         "eis", parse_eis, measurements, enrichments=enrichments, opts=opts
     )
-    cv = None
-    lsv = None
+    lsv = parse_measurement_data(
+        "lsv", parse_lsv, measurements, enrichments=enrichments, opts=opts
+    )
+    cv = parse_measurement_data(
+        "cv", parse_cv, measurements, enrichments=enrichments, opts=opts
+    )
 
     return eis, cv, lsv
 
