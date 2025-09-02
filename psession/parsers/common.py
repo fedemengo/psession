@@ -83,7 +83,7 @@ def parse_method(text, select_keys=None, match_method_id=None):
         return None
 
     out = m_dict
-    if select_keys:
+    if select_keys is not None:
         out = pick_keys(m_dict, select_keys)
 
     out[METHOD_ID] = m_dict.get(METHOD_ID, "").lower()
