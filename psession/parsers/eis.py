@@ -1,9 +1,11 @@
 import re
-import pandas as pd
-from .common import parse_common, flattened_measurements, SWEEP_ID
-from ..util.util import short_id
+from typing import List
+from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id, Parser
 
+METHOD_ID = "eis"
 SORT_KEYS = ["date", "channel"]
+METHOD_KEYS = ["method_id", "min_freq", "max_freq", "n_freq"]
+INFO_KEYS: List[str] = []
 
 UNITS = ["frequency", "z", "phase", "zre", "zim", "c", "cre", "cim", "idc"]
 
@@ -23,22 +25,24 @@ def labels_mapping(label):
 def parse_eis_ch_title(
     title,
 ):
-    assert len(title) > 0, "EIS channel title is empty"
+    try:
+        assert len(title) > 0, "EIS channel title is empty"
 
-    regex = r"CH (\d+): (\d+) freqs"
-    match = re.match(regex, title)
-    assert match, f"Could not parse EIS channel title: {title}"
-    channel = int(match.group(1))
+        regex = r"CH (\d+): (\d+) freqs"
+        match = re.match(regex, title)
+        assert match, f"Could not parse EIS channel title: {title}"
+        channel = int(match.group(1))
 
-    return {
-        "channel": channel,
-    }
+        return {
+            "channel": channel,
+        }
+    except Exception:
+        return {}
 
 
 def parse_dataset(measurement, metadata):
     dataset = measurement.get("DataSet", {})
-    meta = metadata.copy()
-    meta[SWEEP_ID] = short_id(meta)
+    meta = with_sweep_id(metadata)
 
     data = {}
     for ds_value in dataset.get("Values", []):
@@ -66,10 +70,20 @@ def parse_eis(measurement, method_info=None):
         metadata = {
             **measurement_info,
             **parse_eis_ch_title(eis_measurement.get("Title", "")),
+            **pick_keys(method_info, METHOD_KEYS),
         }
 
         measurements.append(
             parse_dataset(eis_measurement, metadata),
         )
 
-    return flattened_measurements(measurements, sort_keys=SORT_KEYS)
+    return flatten_measurements(measurements, sort_keys=SORT_KEYS)
+
+
+eis_parser = Parser(
+    method_id=METHOD_ID,
+    parse=parse_eis,
+    sort_keys=SORT_KEYS,
+    method_keys=METHOD_KEYS,
+    info_keys=INFO_KEYS,
+)

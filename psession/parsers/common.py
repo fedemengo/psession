@@ -1,10 +1,22 @@
 import pandas as pd
 from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from typing import Callable
 from ..util.util import short_id
 
 MEASUREMENT_ID = "measurement_id"
+METHOD_ID = "method_id"
 SWEEP_ID = "sweep_id"
 SORT_KEYS = ["date", "channel"]
+
+
+@dataclass
+class Parser:
+    method_id: str
+    parse: Callable
+    sort_keys: list = field(default_factory=list)
+    method_keys: list = field(default_factory=list)
+    info_keys: list = field(default_factory=list)
 
 
 def ticks_to_date(ticks):
@@ -23,10 +35,15 @@ def parse_common(measurement):
     }
 
 
-def parse_method(text):
+def with_sweep_id(data):
+    out = data.copy()
+    out[SWEEP_ID] = short_id(out)
+    return out
+
+
+def method_to_dict(text):
     out = {}
-    clean_text = text.strip().lower()
-    for raw in clean_text.strip().splitlines():
+    for raw in text.strip().lower().splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -60,7 +77,25 @@ def parse_method(text):
     return out
 
 
-def flattened_measurements(measurements, sort_keys=SORT_KEYS):
+def parse_method(text, select_keys=None, match_method_id=None):
+    m_dict = method_to_dict(text)
+    if match_method_id and m_dict.get(METHOD_ID, "").lower() != match_method_id.lower():
+        return None
+
+    out = m_dict
+    if select_keys:
+        out = pick_keys(m_dict, select_keys)
+
+    out[METHOD_ID] = m_dict.get(METHOD_ID, "").lower()
+
+    return out
+
+
+def pick_keys(data, keys):
+    return {k: data[k] for k in keys if k in data}
+
+
+def flatten_measurements(measurements, sort_keys=SORT_KEYS):
     df = pd.concat(
         (pd.DataFrame(run["data"]).assign(**run["metadata"]) for run in measurements),
         ignore_index=True,

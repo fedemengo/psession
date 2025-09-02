@@ -7,10 +7,10 @@ from pprint import pprint
 from typing import Iterable, List, Optional, Tuple
 import pandas as pd
 
-from .parsers.common import parse_method, parse_common
-from .parsers.eis import parse_eis, SORT_KEYS as SORT_KEYS_EIS
-from .parsers.cv import parse_cv
-from .parsers.lsv import parse_lsv
+from .parsers.common import parse_method, parse_common, Parser
+from .parsers.eis import eis_parser
+from .parsers.cv import cv_parser
+from .parsers.lsv import lsv_parser
 
 SUPPORTED_VERSION = (5, 11, 1006)
 
@@ -18,11 +18,11 @@ log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def multi_encoding_open(file_path: str, encodings: Iterable[str]) -> Optional[str]:
+def multi_encoding_open(fp: str, encodings: Iterable[str]) -> Optional[str]:
     """Read text trying multiple encodings, returning the first success."""
     for enc in encodings:
         try:
-            with open(file_path, "r", encoding=enc) as f:
+            with open(fp, "r", encoding=enc) as f:
                 return f.read()
         except UnicodeDecodeError:
             continue
@@ -47,18 +47,18 @@ def find_json_end(content: str) -> int:
 
 
 def check_support(data: dict):
-    version_string = data.get("CoreVersion", "")
-    parts = version_string.split(".")
+    v_str = data.get("CoreVersion", "")
+    parts = v_str.split(".")
 
     if len(parts) < 2:
-        raise ValueError(f"Could not parse version string: {version_string}")
+        raise ValueError(f"Could not parse version string: {v_str}")
 
     major = int(parts[0])
     minor = int(parts[1])
 
     if major > SUPPORTED_VERSION[0] or minor > SUPPORTED_VERSION[1]:
-        supp_v = ".".join(map(str, SUPPORTED_VERSION))
-        raise ValueError(f"Version {version_string} is newer than supported {supp_v}")
+        v_supp = ".".join(map(str, SUPPORTED_VERSION))
+        raise ValueError(f"Version {v_str} is newer than supported {v_supp}")
 
 
 def parse_pssession_file(
@@ -98,23 +98,26 @@ def parse_pssession_file(
 
 
 def parse_measurement_data(
-    method_id: str,
-    parse_fn,
+    parser: Parser,
     measurements: List[dict],
     enrichments: list = [],
     opts: dict = {},
 ):
     out = []
     for i, measurement in enumerate(measurements):
-        method_params = parse_method(measurement.get("Method", ""))
-        mid = method_params.get("method_id", "")
-        if mid != method_id:
+        method_params = parse_method(
+            measurement.get("Method", ""),
+            select_keys=parser.method_keys,
+            match_method_id=parser.method_id,
+        )
+        # skip measurements that don't match the parser. meh
+        if method_params is None:
             continue
 
         try:
-            data = parse_fn(measurement, method_info=method_params)
+            data = parser.parse(measurement, method_info=method_params)
         except Exception as e:
-            log.error(f"Error parsing {method_id} measurement #{i}: {e}")
+            log.error(f"Error parsing {parser.method_id} measurement #{i}: {e}")
             continue
 
         out.append(data)
@@ -122,12 +125,12 @@ def parse_measurement_data(
     if len(out) == 0:
         return None
 
-    print(f"Parsed {len(out)} {method_id.upper()} measurements")
+    print(f"Parsed {len(out)} {parser.method_id.upper()} measurements")
 
     df = pd.concat(out)
     df = enrich_df(df, enrichments)
 
-    sort_keys = opts.get("presort", []) + SORT_KEYS_EIS + opts.get("sort", [])
+    sort_keys = opts.get("presort", []) + parser.sort_keys + opts.get("sort", [])
     df = df.sort_values(sort_keys, kind="mergesort").reset_index(drop=True)
 
     return df
@@ -139,7 +142,7 @@ def enrich_df(df: pd.DataFrame, enrichments: list) -> pd.DataFrame:
         m = out.apply(match_fn, axis=1)
         if not m.any():
             continue
-        upd = out.loc[m].apply(upd_fn, axis=1).apply(pd.Series)  # dicts → columns
+        upd = out.loc[m].apply(upd_fn, axis=1).apply(pd.Series)
         out.loc[m, upd.columns] = upd.values
 
     return out
@@ -147,33 +150,43 @@ def enrich_df(df: pd.DataFrame, enrichments: list) -> pd.DataFrame:
 
 def parse_data(
     data: dict, enrichments: list = [], opts: dict = {}
-) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     measurements = data.get("Measurements", [])
 
     eis = parse_measurement_data(
-        "eis", parse_eis, measurements, enrichments=enrichments, opts=opts
+        eis_parser, measurements, enrichments=enrichments, opts=opts
     )
     lsv = parse_measurement_data(
-        "lsv", parse_lsv, measurements, enrichments=enrichments, opts=opts
+        lsv_parser, measurements, enrichments=enrichments, opts=opts
     )
     cv = parse_measurement_data(
-        "cv", parse_cv, measurements, enrichments=enrichments, opts=opts
+        cv_parser, measurements, enrichments=enrichments, opts=opts
     )
 
     return eis, cv, lsv
 
 
 def parse_info(data: dict) -> list:
+    parsers = [eis_parser, cv_parser, lsv_parser]
     info = []
-    for measurement in data.get("Measurements", []):
-        method_params = parse_method(measurement.get("Method", ""))
+    for m in data.get("Measurements", []):
+        method_params = {}
+        for p in parsers:
+            params = parse_method(
+                m.get("Method", ""),
+                select_keys=p.info_keys,
+                match_method_id=p.method_id,
+            )
+            if params is not None:
+                method_params = params
+                break
+
         info.append(
             {
-                **parse_common(measurement),
-                "method_id": method_params.get("method_id", ""),
+                **parse_common(m),
+                **method_params,
             }
         )
-
     return info
 
 
@@ -185,10 +198,3 @@ def parse(file_path: str, enrichments: list = [], opts: dict = {}):
 def info(file_path: str) -> list:
     data = parse_pssession_file(file_path)
     return parse_info(data)
-
-
-def gen_annotation(file_path: str, fn):
-    out = []
-    for minfo in info(file_path):
-        out.append({**minfo, **fn(minfo)})
-    return out

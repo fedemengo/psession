@@ -1,22 +1,29 @@
 import re
-from .common import parse_common, flattened_measurements, short_id, SWEEP_ID
+from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id, Parser
+
+METHOD_ID = "lsv"
+SORT_KEYS = ["date", "channel"]
+METHOD_KEYS = ["method_id", "e_begin", "e_end", "e_step", "scan_rate", "n_scans"]
+INFO_KEYS = ["e_begin", "e_end"]
 
 
 # parse title in the form "LSV i vs E Channel 1"
 def parse_lsv_ch_title(title):
-    assert len(title) > 0, "LSV channel title is empty"
+    try:
+        assert len(title) > 0, "LSV channel title is empty"
 
-    regex = r"LSV i vs E Channel (\d+)"
-    match = re.match(regex, title)
-    assert match, f"Could not parse EIS channel title: {title}"
-    channel = int(match.group(1))
+        regex = r"LSV i vs E Channel (\d+)"
+        match = re.match(regex, title)
+        assert match, f"Could not parse EIS channel title: {title}"
+        channel = int(match.group(1))
 
-    return {"channel": channel}
+        return {"channel": channel}
+    except Exception:
+        return {}
 
 
 def parse_dataset(measurement, metadata):
-    meta = metadata.copy()
-    meta[SWEEP_ID] = short_id(meta)
+    meta = with_sweep_id(metadata)
 
     xs = measurement.get("XAxisDataArray", [])
     ys = measurement.get("YAxisDataArray", [])
@@ -43,11 +50,21 @@ def parse_lsv(measurement, method_info=None):
         metadata = {
             **measurement_info,
             **parse_lsv_ch_title(lsv_measurement.get("Title", "")),
+            **pick_keys(method_info, METHOD_KEYS),
         }
         measurements.append(
             parse_dataset(lsv_measurement, metadata),
         )
 
-    return flattened_measurements(
+    return flatten_measurements(
         measurements,
     )
+
+
+lsv_parser = Parser(
+    method_id=METHOD_ID,
+    parse=parse_lsv,
+    sort_keys=SORT_KEYS,
+    method_keys=METHOD_KEYS,
+    info_keys=INFO_KEYS,
+)
