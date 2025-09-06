@@ -1,5 +1,11 @@
 from typing import Callable
-from .common import ticks_to_date, method_to_dict, pick_keys, METHOD_ID
+from .common import (
+    ticks_to_date,
+    method_to_dict,
+    pick_keys,
+    parse_common,
+    METHOD_ID,
+)
 
 
 from .eis import (
@@ -25,6 +31,20 @@ from .lsv import (
 )
 
 
+def parse_method(text, select_keys=None, match_method_id=None):
+    m_dict = method_to_dict(text)
+    if match_method_id and m_dict.get(METHOD_ID, "").lower() != match_method_id.lower():
+        return None
+
+    out = m_dict
+    if select_keys is not None:
+        out = pick_keys(m_dict, select_keys)
+
+    out[METHOD_ID] = m_dict.get(METHOD_ID, "").lower()
+
+    return out
+
+
 class BaseParser:
     def __init__(
         self,
@@ -43,15 +63,6 @@ class BaseParser:
     def __repr__(self):
         return self.mid.upper()
 
-    def parse_common(self, measurement: dict):
-        title = measurement.get("Title", "")
-        date = ticks_to_date(measurement.get("TimeStamp", 0)).isoformat()
-
-        return {
-            "title": title,
-            "date": date,
-        }
-
     def parse_method(self, text: str, info: bool = False, data: bool = False):
         select_keys = None
         if info:
@@ -59,17 +70,11 @@ class BaseParser:
         if data:
             select_keys = self.method_keys
 
-        m_dict = method_to_dict(text)
-        if self.mid and m_dict.get(METHOD_ID, "").lower() != self.mid:
-            return None
-
-        out = m_dict
-        if select_keys is not None:
-            out = pick_keys(m_dict, select_keys)
-
-        out[METHOD_ID] = m_dict.get(METHOD_ID, "").lower()
-
-        return out
+        return parse_method(
+            text,
+            select_keys=select_keys,
+            match_method_id=self.mid,
+        )
 
     def parse_info(self, m: dict):
         method_params = self.parse_method(m.get("Method", ""), info=True)
@@ -77,7 +82,7 @@ class BaseParser:
             return None
 
         return {
-            **self.parse_common(m),
+            **parse_common(m),
             **method_params,
         }
 
@@ -86,13 +91,7 @@ class BaseParser:
         if method_params is None:
             return None
 
-        try:
-            data = self.parse(m, method_info=method_params)
-        except Exception as e:
-            print(f"Error parsing {self.mid} measurement: {e}")
-            return None
-
-        return data
+        return self.parse(m, method_info=method_params)
 
 
 eisParser = BaseParser(

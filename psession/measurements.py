@@ -86,10 +86,13 @@ class Parsers:
 
         out = []
         for i, measurement in enumerate(measurements):
-            data = parser.parse_data(measurement)
-            if data is None:
-                continue
-            out.append(data)
+            try:
+                data = parser.parse_data(measurement)
+                if data is None:
+                    continue
+                out.append(data)
+            except Exception as e:
+                print(f"Error parsing {parser} measurement #{i}: {e}")
 
         if len(out) == 0:
             return None

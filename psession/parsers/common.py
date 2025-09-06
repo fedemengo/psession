@@ -1,11 +1,16 @@
 from datetime import datetime, timedelta
 import pandas as pd
-from ..util.util import short_id, pick_keys
 
 MEASUREMENT_ID = "measurement_id"
 METHOD_ID = "method_id"
 SWEEP_ID = "sweep_id"
 SORT_KEYS = ["date", "channel"]
+
+DATE_FMT = "%y%m%d%H%M%S"
+
+
+def pick_keys(data, keys):
+    return {k: data[k] for k in keys if k in data}
 
 
 def ticks_to_date(ticks):
@@ -15,18 +20,18 @@ def ticks_to_date(ticks):
 
 def parse_common(measurement):
     title = measurement.get("Title", "")
-    date = ticks_to_date(measurement.get("TimeStamp", 0)).isoformat()
+    date = ticks_to_date(measurement.get("TimeStamp", 0))
 
     return {
         "title": title,
         "date": date,
-        MEASUREMENT_ID: short_id([title, date]),
+        MEASUREMENT_ID: date.strftime(DATE_FMT),
     }
 
 
 def with_sweep_id(data):
     out = data.copy()
-    out[SWEEP_ID] = short_id(out)
+    out[SWEEP_ID] = out.get(MEASUREMENT_ID) + "_ch" + str(out.get("channel"))
     return out
 
 

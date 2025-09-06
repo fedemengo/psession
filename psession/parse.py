@@ -108,6 +108,9 @@ def cache_parameters(
     cache_path: Optional[str] = None,
     force_reload: bool = False,
 ) -> CacheParameters:
+    if os.getenv("NO_CACHE", "").lower() in ("1", "true", "yes", "t", "y"):
+        force_reload = True
+
     return CacheParameters(
         write_cache=True,
         read_cache=not force_reload,
