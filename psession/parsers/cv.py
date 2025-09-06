@@ -1,9 +1,18 @@
 import re
-from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id, Parser
+from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id
 
 METHOD_ID = "cv"
 SORT_KEYS = ["date", "channel", "cycle"]
-METHOD_KEYS = ["method_id", "e_begin", "e_end", "e_step", "e_vtx1", "e_vtx2", "scan_rate", "n_scans"]
+METHOD_KEYS = [
+    "method_id",
+    "e_begin",
+    "e_end",
+    "e_step",
+    "e_vtx1",
+    "e_vtx2",
+    "scan_rate",
+    "n_scans",
+]
 INFO_KEYS = ["e_vtx1", "e_vtx2", "scan_rate", "n_scans"]
 
 
@@ -53,12 +62,3 @@ def parse_cv(measurement, method_info=None):
         measurements.append(parse_dataset(cv_measurement, metadata))
 
     return flatten_measurements(measurements)
-
-
-cv_parser = Parser(
-    method_id=METHOD_ID,
-    parse=parse_cv,
-    sort_keys=SORT_KEYS,
-    method_keys=METHOD_KEYS,
-    info_keys=INFO_KEYS,
-)

@@ -1,22 +1,11 @@
-import pandas as pd
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from typing import Callable
-from ..util.util import short_id
+import pandas as pd
+from ..util.util import short_id, pick_keys
 
 MEASUREMENT_ID = "measurement_id"
 METHOD_ID = "method_id"
 SWEEP_ID = "sweep_id"
 SORT_KEYS = ["date", "channel"]
-
-
-@dataclass
-class Parser:
-    method_id: str
-    parse: Callable
-    sort_keys: list = field(default_factory=list)
-    method_keys: list = field(default_factory=list)
-    info_keys: list = field(default_factory=list)
 
 
 def ticks_to_date(ticks):
@@ -89,10 +78,6 @@ def parse_method(text, select_keys=None, match_method_id=None):
     out[METHOD_ID] = m_dict.get(METHOD_ID, "").lower()
 
     return out
-
-
-def pick_keys(data, keys):
-    return {k: data[k] for k in keys if k in data}
 
 
 def flatten_measurements(measurements, sort_keys=SORT_KEYS):

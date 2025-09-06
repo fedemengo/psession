@@ -1,5 +1,5 @@
 import re
-from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id, Parser
+from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id
 
 METHOD_ID = "lsv"
 SORT_KEYS = ["date", "channel"]
@@ -59,12 +59,3 @@ def parse_lsv(measurement, method_info=None):
     return flatten_measurements(
         measurements,
     )
-
-
-lsv_parser = Parser(
-    method_id=METHOD_ID,
-    parse=parse_lsv,
-    sort_keys=SORT_KEYS,
-    method_keys=METHOD_KEYS,
-    info_keys=INFO_KEYS,
-)

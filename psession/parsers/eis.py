@@ -1,6 +1,6 @@
 import re
 from typing import List
-from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id, Parser
+from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id
 
 METHOD_ID = "eis"
 SORT_KEYS = ["date", "channel"]
@@ -78,12 +78,3 @@ def parse_eis(measurement, method_info=None):
         )
 
     return flatten_measurements(measurements, sort_keys=SORT_KEYS)
-
-
-eis_parser = Parser(
-    method_id=METHOD_ID,
-    parse=parse_eis,
-    sort_keys=SORT_KEYS,
-    method_keys=METHOD_KEYS,
-    info_keys=INFO_KEYS,
-)

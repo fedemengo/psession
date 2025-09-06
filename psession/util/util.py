@@ -13,3 +13,6 @@ def short_id(x: Any, length: int = 4) -> str:
         data = str(x)
 
     return hashlib.blake2b(data.encode(), digest_size=length).hexdigest()
+
+def pick_keys(data, keys):
+    return {k: data[k] for k in keys if k in data}
