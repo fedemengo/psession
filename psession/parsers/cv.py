@@ -48,14 +48,16 @@ def add_sweep_direction(df):
 
 
 def compute_charge(df, scan_rate):
-    dE = df.groupby("sweep_dir")["voltage"].diff().fillna(0)
-
-    prev_i = df.groupby("sweep_dir")["current"].shift().fillna(df["current"])
+    dE = df["voltage"].diff().fillna(0.0)
+    prev_i = df["current"].shift().fillna(df["current"])
     Imid = 0.5 * (df["current"] + prev_i)
 
-    dQ = (Imid * dE) / scan_rate
+    # Time step is positive regardless of sweep direction
+    dt = np.abs(dE) / abs(float(scan_rate))
+    dQ = Imid * dt  # units: (current units) * s
 
-    df["charge"] = dQ.groupby(df["sweep_dir"]).cumsum()
+    df["charge"] = dQ.cumsum()
+    df["charge_segment"] = dQ.groupby(df["sweep_dir"]).cumsum()
 
     return df
 
@@ -81,7 +83,7 @@ def parse_dataset(measurement, metadata):
 
     df = add_sweep_direction(df)
     df = compute_charge(df, must_get(metadata, "scan_rate"))
-    df["q_norm"] = df.groupby("sweep_dir")["charge"].transform(normalize_charge)
+    df["q_norm"] = df.groupby("sweep_dir")["charge_segment"].transform(normalize_charge)
 
     return df, metadata
 
