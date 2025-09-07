@@ -1,4 +1,5 @@
 import re
+import pandas as pd
 from typing import List
 from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id
 
@@ -42,7 +43,6 @@ def parse_eis_ch_title(
 
 def parse_dataset(measurement, metadata):
     dataset = measurement.get("DataSet", {})
-    meta = with_sweep_id(metadata)
 
     data = {}
     for ds_value in dataset.get("Values", []):
@@ -52,10 +52,9 @@ def parse_dataset(measurement, metadata):
         if ds_type in UNITS:
             data[ds_type] = [x.get("V") for x in ds_value]
 
-    return {
-        "metadata": meta,
-        "data": data,
-    }
+    df = pd.DataFrame(data)
+
+    return df, metadata
 
 
 def parse_eis(measurement, method_info=None):
@@ -72,6 +71,7 @@ def parse_eis(measurement, method_info=None):
             **parse_eis_ch_title(eis_measurement.get("Title", "")),
             **pick_keys(method_info, METHOD_KEYS),
         }
+        metadata = with_sweep_id(metadata)
 
         measurements.append(
             parse_dataset(eis_measurement, metadata),

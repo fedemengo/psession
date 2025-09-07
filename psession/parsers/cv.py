@@ -1,5 +1,14 @@
 import re
-from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id
+import numpy as np
+import pandas as pd
+from functools import partial
+from .common import (
+    parse_common,
+    pick_keys,
+    flatten_measurements,
+    with_sweep_id,
+    must_get,
+)
 
 METHOD_ID = "cv"
 SORT_KEYS = ["date", "channel", "cycle"]
@@ -30,20 +39,51 @@ def parse_cv_ch_title(title):
         return {}
 
 
-def parse_dataset(measurement, metadata):
-    meta = with_sweep_id(metadata)
+def add_sweep_direction(df):
+    dE = np.diff(df["voltage"], prepend=df["voltage"].iloc[0])
+    sweep_direction = np.sign(dE).astype(np.int8)
+    sweep_direction[0] = np.where(df["voltage"].iloc[1] >= df["voltage"].iloc[0], 1, -1)
+    df.insert(0, "sweep_dir", sweep_direction)
+    return df
 
+
+def compute_charge(df, scan_rate):
+    dE = df.groupby("sweep_dir")["voltage"].diff().fillna(0)
+
+    prev_i = df.groupby("sweep_dir")["current"].shift().fillna(df["current"])
+    Imid = 0.5 * (df["current"] + prev_i)
+
+    dQ = (Imid * dE) / scan_rate
+
+    df["charge"] = dQ.groupby(df["sweep_dir"]).cumsum()
+
+    return df
+
+
+def normalize_charge(q):
+    q_min, q_max = q.min(), q.max()
+    return (q - q_min) / (q_max - q_min) if q_max > q_min else 0.0
+
+
+def parse_dataset(measurement, metadata):
     xs = measurement.get("XAxisDataArray", [])
     ys = measurement.get("YAxisDataArray", [])
 
-    data = {}
-    for out_key, in_data in zip(["voltage", "current"], [xs, ys]):
-        data[out_key] = [x.get("V") for x in in_data.get("DataValues", [])]
+    volt = [x.get("V") for x in xs.get("DataValues", [])]
+    curr = [y.get("V") for y in ys.get("DataValues", [])]
 
-    return {
-        "metadata": meta,
-        "data": data,
-    }
+    df = pd.DataFrame(
+        {
+            "voltage": volt,
+            "current": curr,
+        }
+    )
+
+    df = add_sweep_direction(df)
+    df = compute_charge(df, must_get(metadata, "scan_rate"))
+    df["q_norm"] = df.groupby("sweep_dir")["charge"].transform(normalize_charge)
+
+    return df, metadata
 
 
 def parse_cv(measurement, method_info=None):
@@ -58,6 +98,7 @@ def parse_cv(measurement, method_info=None):
             **parse_cv_ch_title(cv_measurement.get("Title", "")),
             **pick_keys(method_info, METHOD_KEYS),
         }
+        metadata = with_sweep_id(metadata)
 
         measurements.append(parse_dataset(cv_measurement, metadata))
 

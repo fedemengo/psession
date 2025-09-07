@@ -9,6 +9,12 @@ SORT_KEYS = ["date", "channel"]
 DATE_FMT = "%y%m%d%H%M%S"
 
 
+def must_get(d, key, msg=None):
+    if key not in d:
+        raise KeyError(msg or f"Key '{key}' not found in dict")
+    return d[key]
+
+
 def pick_keys(data, keys):
     return {k: data[k] for k in keys if k in data}
 
@@ -86,17 +92,23 @@ def parse_method(text, select_keys=None, match_method_id=None):
 
 
 def flatten_measurements(measurements, sort_keys=SORT_KEYS):
-    df = pd.concat(
-        (pd.DataFrame(run["data"]).assign(**run["metadata"]) for run in measurements),
-        ignore_index=True,
-    )
+    frames = []
+    for data, meta in measurements:
+        df_run = data.assign(**meta)
+        frames.append(df_run)
 
-    # metadata first
-    meta_cols = list(measurements[0]["metadata"].keys())
+    df = pd.concat(frames, ignore_index=True, sort=False)
+
+    meta_cols = list(measurements[0][1].keys())
     other = [c for c in df.columns if c not in meta_cols]
     df = df[meta_cols + other]
 
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.sort_values(sort_keys).reset_index(drop=True)
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    if sort_keys:
+        keys = [c for c in sort_keys if c in df.columns]
+        if keys:
+            df = df.sort_values(keys).reset_index(drop=True)
 
     return df

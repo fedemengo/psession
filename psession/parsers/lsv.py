@@ -1,5 +1,13 @@
 import re
-from .common import parse_common, pick_keys, flatten_measurements, with_sweep_id
+import numpy as np
+import pandas as pd
+from .common import (
+    parse_common,
+    pick_keys,
+    flatten_measurements,
+    with_sweep_id,
+    must_get,
+)
 
 METHOD_ID = "lsv"
 SORT_KEYS = ["date", "channel"]
@@ -22,20 +30,34 @@ def parse_lsv_ch_title(title):
         return {}
 
 
-def parse_dataset(measurement, metadata):
-    meta = with_sweep_id(metadata)
+def compute_charge(df, scan_rate):
+    v = df["voltage"].to_numpy()
+    i = df["current"].to_numpy()
 
+    dE = np.diff(v, prepend=v[0])
+    Imid = 0.5 * (i + np.r_[i[0], i[:-1]])
+    dQ = (Imid * dE) / scan_rate
+    df["charge"] = np.cumsum(dQ)
+    return df
+
+
+def parse_dataset(measurement, metadata):
     xs = measurement.get("XAxisDataArray", [])
     ys = measurement.get("YAxisDataArray", [])
 
-    data = {}
-    for out_key, in_data in zip(["current", "voltage"], [xs, ys]):
-        data[out_key] = [x.get("V") for x in in_data.get("DataValues", [])]
+    volt = [y.get("V") for y in xs.get("DataValues", [])]
+    curr = [x.get("V") for x in ys.get("DataValues", [])]
 
-    return {
-        "metadata": meta,
-        "data": data,
-    }
+    df = pd.DataFrame(
+        {
+            "voltage": volt,
+            "current": curr,
+        }
+    )
+
+    df = compute_charge(df, must_get(metadata, "scan_rate"))
+
+    return df, metadata
 
 
 def parse_lsv(measurement, method_info=None):
@@ -52,6 +74,7 @@ def parse_lsv(measurement, method_info=None):
             **parse_lsv_ch_title(lsv_measurement.get("Title", "")),
             **pick_keys(method_info, METHOD_KEYS),
         }
+        metadata = with_sweep_id(metadata)
         measurements.append(
             parse_dataset(lsv_measurement, metadata),
         )
