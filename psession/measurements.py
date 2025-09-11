@@ -95,7 +95,7 @@ class Parsers:
                 print(f"Error parsing {parser} measurement #{i}: {e}")
 
         if len(out) == 0:
-            return None
+            return pd.DataFrame()
 
         print(f"Parsed {len(out)} {parser} measurements")
 

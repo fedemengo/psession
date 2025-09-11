@@ -29,16 +29,17 @@ def parse_eis_ch_title(
     try:
         assert len(title) > 0, "EIS channel title is empty"
 
-        regex = r"CH (\d+): (\d+) freqs"
+        regex = r"CH (\d+): (\d+) freqs.*"
         match = re.match(regex, title)
         assert match, f"Could not parse EIS channel title: {title}"
         channel = int(match.group(1))
+        assert channel > 0, f"Invalid channel number in title: {title}"
 
         return {
             "channel": channel,
         }
-    except Exception:
-        return {}
+    except Exception as e:
+        raise RuntimeError(e)
 
 
 def parse_dataset(measurement, metadata):
