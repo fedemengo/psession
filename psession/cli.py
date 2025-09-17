@@ -141,6 +141,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     if os.getenv("PSESS_PRESORT") is not None:
         opts["presort"] = os.getenv("PSESS_PRESORT").split(",")
 
+    opts["cv"] = {
+        "base_sort": ["date"],
+    }
+
     measurements = parse(
         str(args.file),
         enrichments=default_enrichments(),

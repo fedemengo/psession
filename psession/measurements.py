@@ -102,7 +102,10 @@ class Parsers:
         df = pd.concat(out)
         df = enrich_df(df, enrichments)
 
-        sort_keys = opts.get("presort", []) + parser.sort_keys + opts.get("sort", [])
+        parser_keys = (
+            opts.get(parser.mid, {}).get("base_sort", None) or parser.sort_keys
+        )
+        sort_keys = opts.get("presort", []) + parser_keys + opts.get("sort", [])
         df = df.sort_values(sort_keys, kind="mergesort").reset_index(drop=True)
 
         write_cached_path = self.cache.write_fp(str(parser) + ".csv")

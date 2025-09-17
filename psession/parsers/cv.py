@@ -24,19 +24,26 @@ METHOD_KEYS = [
 ]
 INFO_KEYS = ["e_vtx1", "e_vtx2", "scan_rate", "n_scans"]
 
+cycle_regex = re.compile(r"Scan (\d+)")
+channel_regex = re.compile(r"Channel (\d+)")
+
 
 def parse_cv_ch_title(title):
+    data = {}
     try:
         assert len(title) > 0, "CV channel title is empty"
-        regex = r"CV i vs E Scan (\d+) Channel (\d+)"
-        match = re.match(regex, title)
-        assert match, f"Could not parse CV channel title: {title}"
+        match = cycle_regex.search(title)
         cycle = int(match.group(1))
-        channel = int(match.group(2))
+        data["cycle"] = cycle
 
-        return {"cycle": cycle, "channel": channel}
+        match = channel_regex.search(title)
+        channel = int(match.group(1))
+        data["channel"] = channel
+
+        return data
+
     except Exception:
-        return {}
+        return data
 
 
 def add_sweep_direction(df):
